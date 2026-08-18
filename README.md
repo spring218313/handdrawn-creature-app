@@ -1,4 +1,4 @@
-# Hand-Drawn Creature App
+# Tree Hand-Drawn Creature App
 
 ![banner](banner.png)
 
@@ -17,7 +17,7 @@ bash install.sh ~/.codex/skills    # Codex
 bash install.sh ~/.claude/skills   # Claude Code
 
 # 或直接克隆
-git clone https://github.com/Tree-oil/handdrawn-creature-app ~/.agents/skills/handdrawn-creature-app
+git clone https://github.com/Tree-oil/Tree-handdrawn-creature-app ~/.agents/skills/Tree-handdrawn-creature-app
 ```
 
 ## 快速开始 / Quick Start
