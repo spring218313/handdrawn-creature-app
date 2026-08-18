@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who are you?</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f7f1e2'/%3E%3Cellipse cx='50' cy='42' rx='30' ry='33' fill='none' stroke='%23232323' stroke-width='4'/%3E%3Ccircle cx='38' cy='42' r='4' fill='%23232323'/%3E%3Ccircle cx='62' cy='42' r='4' fill='%23232323'/%3E%3Cpath d='M50 58 Q54 60 56 56' stroke='%23232323' stroke-width='3' fill='none'/%3E%3Cellipse cx='50' cy='82' rx='26' ry='12' fill='%23b8c9a4' stroke='%23232323' stroke-width='4'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400;600;700&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #efe8d8;
+    --card: #f8f3e6;
+    --ink: #232323;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    position: relative;
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: 'Caveat', 'Segoe Print', 'Comic Sans MS', cursive;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+  }
+  h1 {
+    position: absolute;
+    top: 5.5%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'Shantell Sans', 'Segoe Print', cursive;
+    font-weight: 700;
+    font-size: 44px;
+    line-height: 1.04;
+    letter-spacing: 0;
+    color: var(--ink);
+    transform: rotate(-2.4deg);
+    text-shadow: 1px 2px 0 rgba(35,35,35,.07);
+    user-select: none;
+    pointer-events: none;
+  }
+  .inputWrap {
+    position: absolute;
+    bottom: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(370px, 90vw);
+    height: 58px;
+  }
+  .inputWrap input {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: 'Shantell Sans', 'Segoe Print', cursive;
+    font-style: normal;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--ink);
+    caret-color: #8b3a3a;
+    padding: 0 0 0 22px;
+    text-align: left;
+  }
+  .inputWrap input::placeholder { color: rgba(62,56,44,.75); }
+  @media (max-width: 420px) {
+    h1 { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="stage" aria-label="A hand-drawn creature generated from the username"></canvas>
+  <h1>Who are you?</h1>
+  <div class="inputWrap">
+    <input id="name" placeholder="username..." autocomplete="off" spellcheck="false" aria-label="Username">
+  </div>
+<script>
+'use strict';
+
+const LOGICAL = { w: 300, h: 380 };
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const input = document.getElementById('name');
+
+function hash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function n2(x, y, seed) {
+  const s = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
+  return (s - Math.floor(s)) * 2 - 1;
+}
+function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
+function chance(rng, p) { return rng() < p; }
+
+const BODY_COLORS = ['#b8c9a4', '#c4b2d9', '#b7c4da', '#e2b59b', '#dba8b5', '#d4c59b', '#8e939a', '#a9b2c4'];
+const IRIS = ['#4c5d3a', '#4c6b8a', '#6b4f66', '#7a5a3a'];
+const EARS = ['droop', 'pointy', 'round', 'antenna', 'horns', 'none'];
+const HAIR = ['grass', 'spiky', 'fringe', 'bun', 'none'];
+const EYES = ['dot', 'white', 'happy', 'sleepy'];
+const MOUTHS = ['smile', 'open', 'flat', 'ooh'];
+const ARMS = ['down', 'up', 'wave'];
+const BROW = ['flat', 'raised', 'angry'];
+
+function makeCreature(name) {
+  if (name === '') {
+    return {
+      color: BODY_COLORS[0], ears: 'droop', hair: 'grass', eye: 'dot',
+      mouth: 'smile', arms: 'down', brow: 'raised', blush: true, iris: IRIS[0],
+    };
+  }
+  const rng = mulberry32(hash(name));
+  return {
+    color: pick(rng, BODY_COLORS),
+    ears: pick(rng, EARS),
+    hair: pick(rng, HAIR),
+    eye: pick(rng, EYES),
+    mouth: pick(rng, MOUTHS),
+    arms: pick(rng, ARMS),
+    brow: pick(rng, BROW),
+    blush: chance(rng, 0.6),
+    iris: pick(rng, IRIS),
+  };
+}
+
+function wobble(x, y, amp, seed) {
+  return {
+    x: x + amp * n2(x * 0.06, y * 0.06, seed),
+    y: y + amp * n2(x * 0.06, y * 0.06, seed + 3),
+  };
+}
+
+function trace(ctx, pts, closed) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    ctx.quadraticCurveTo(a.x, a.y, (a.x + b.x) / 2, (a.y + b.y) / 2);
+  }
+  if (closed) {
+    const a = pts[pts.length - 1], b = pts[0];
+    ctx.quadraticCurveTo(a.x, a.y, (a.x + b.x) / 2, (a.y + b.y) / 2);
+    ctx.closePath();
+  } else {
+    const last = pts[pts.length - 1];
+    ctx.lineTo(last.x, last.y);
+  }
+}
+
+function jittered(pts, amp, seed) {
+  return pts.map((p, i) => {
+    const jx = amp * n2(i * 1.7 + seed * 0.13, seed * 0.31, seed);
+    const jy = amp * n2(seed * 0.47, i * 2.9 + seed * 0.19, seed + 3);
+    return { x: p.x + jx, y: p.y + jy };
+  });
+}
+
+function fillSketch(ctx, pts, color, amp = 1.4, seed = 1, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  trace(ctx, jittered(pts, amp, seed), true);
+  ctx.fill();
+  ctx.restore();
+}
+
+function strokeSketch(ctx, pts, opts = {}) {
+  const {
+    passes = 2, width = 2.2, seed = 5, amp = 2.2, alpha = 1,
+    color = '#232323', closed = false,
+  } = opts;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (let p = 0; p < passes; p++) {
+    const off = p === 0 ? 0 : 2.6;
+    const dx = off * n2(3.7 + p, p * 5.1, seed);
+    const dy = off * n2(p * 7.3, 2.1 + p, seed + 1);
+    ctx.globalAlpha = alpha * (p === 0 ? 1 : 0.4);
+    ctx.lineWidth = width * (p === 0 ? 1 : 0.85);
+    trace(ctx, jittered(pts.map(q => ({ x: q.x + dx, y: q.y + dy })), amp, seed + p * 17), closed);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function ellipsePts(cx, cy, rx, ry, n = 22, phase = 0) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2 + phase;
+    pts.push({ x: cx + Math.cos(t) * rx, y: cy + Math.sin(t) * ry });
+  }
+  return pts;
+}
+
+function eggPts(cx, cy, rx, ry, seed, n = 22) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const wob = 1 + 0.06 * n2(Math.cos(t) * 3.1, Math.sin(t) * 3.1, seed);
+    const taper = 1 - 0.03 * Math.max(0, -Math.sin(t));
+    pts.push({ x: cx + Math.cos(t) * rx * wob, y: cy + Math.sin(t) * ry * wob * taper });
+  }
+  return pts;
+}
+
+function pearPts(cx, cy, rx, ry, seed, n = 20) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const wob = 1 + 0.07 * n2(Math.cos(t) * 3.1, Math.sin(t) * 3.1, seed);
+    const taper = 1 - 0.14 * Math.max(0, -Math.sin(t));
+    pts.push({ x: cx + Math.cos(t) * rx * wob * taper, y: cy + Math.sin(t) * ry * wob });
+  }
+  return pts;
+}
+
+function arcPts(cx, cy, r, a0, a1, n) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = a0 + (a1 - a0) * (i / n);
+    pts.push({ x: cx + Math.cos(t) * r, y: cy + Math.sin(t) * r });
+  }
+  return pts;
+}
+
+function limbPts(a, b, seed, ampScale = 0.1) {
+  const pts = [{ x: a.x, y: a.y }];
+  const n = 4;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const amp = Math.max(1, len * ampScale);
+  const px = -dy / len, py = dx / len;
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    const off = amp * n2(t * 9.7, seed, seed % 97 + 3);
+    pts.push({ x: a.x + dx * t + px * off, y: a.y + dy * t + py * off });
+  }
+  pts.push({ x: b.x, y: b.y });
+  return pts;
+}
+
+/* paper texture */
+const paper = document.createElement('canvas');
+paper.width = 600; paper.height = 760;
+{
+  const p = paper.getContext('2d');
+  p.fillStyle = '#efe8d8';
+  p.fillRect(0, 0, 600, 760);
+  for (let i = 0; i < 600; i++) {
+    const x = Math.random() * 600, y = Math.random() * 760;
+    p.fillStyle = Math.random() < 0.5 ? 'rgba(120,105,72,0.10)' : 'rgba(150,140,110,0.08)';
+    p.fillRect(x, y, Math.random() < 0.85 ? 1 : 2, 1);
+  }
+  p.strokeStyle = 'rgba(120,105,72,0.08)';
+  p.lineWidth = 1;
+  for (let i = 0; i < 12; i++) {
+    const x = Math.random() * 600, y = Math.random() * 760, len = 10 + Math.random() * 30;
+    const ang = Math.random() * Math.PI;
+    p.beginPath();
+    p.moveTo(x, y);
+    p.quadraticCurveTo(x + Math.cos(ang) * len * 0.5 + (Math.random() - 0.5) * 8, y + Math.sin(ang) * len * 0.5, x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+    p.stroke();
+  }
+  const g = p.createRadialGradient(300, 380, 120, 300, 380, 460);
+  g.addColorStop(0, 'rgba(120,105,72,0)');
+  g.addColorStop(1, 'rgba(120,105,72,0.08)');
+  p.fillStyle = g;
+  p.fillRect(0, 0, 600, 760);
+}
+
+let creature = makeCreature('');
+let time = 0;
+let hop = 0;
+let waveProg = 0;
+let actionT = 4 + Math.random() * 4;
+let lastT = performance.now();
+let gaze = { x: 0, y: 0 };
+let mouse = { x: 150, y: 60, active: false };
+let mouseOnScreen = false;
+let idleK = 1;
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  canvas.width = Math.round(window.innerWidth * dpr);
+  canvas.height = Math.round(window.innerHeight * dpr);
+}
+
+const HEAD = { x: 150, y: 160, rx: 78, ry: 46 };
+const BODY = { x: 150, y: 250, rx: 64, ry: 42 };
+
+function drawGround(seed) {
+  const pts = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10;
+    pts.push({ x: 62 + t * 176 + n2(t * 3, 1, seed + 5) * 3, y: 330 + n2(t * 5, 2, seed + 6) * 2 });
+  }
+  strokeSketch(ctx, pts, { passes: 1, width: 1.6, seed: seed + 5, color: 'rgba(35,35,35,0.26)' });
+}
+
+function drawBody(c, seed) {
+  const pts = pearPts(BODY.x, BODY.y, BODY.rx, BODY.ry, seed + 40);
+  fillSketch(ctx, pts, c.color, 1.6, seed + 40, 0.94);
+  ctx.save();
+  trace(ctx, jittered(pts, 1.6, seed + 41), true);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(35,35,35,0.08)';
+  ctx.lineWidth = 1;
+  for (let k = 0; k < 5; k++) {
+    const sx = BODY.x - BODY.rx * 0.6 + n2(k, 3, seed + 60) * 20;
+    const sy = BODY.y - BODY.ry * 0.5 + k * 16 + n2(k, 5, seed + 61) * 5;
+    const len = 10 + n2(k, 7, seed + 62) * 10;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + len, sy + 4 + n2(k, 9, seed + 63) * 3);
+    ctx.stroke();
+  }
+  ctx.restore();
+  strokeSketch(ctx, pts, { seed: seed + 40, width: 2.4 });
+}
+
+function drawEars(c, seed) {
+  if (c.ears === 'droop') {
+    [[102, 140], [198, 140]].forEach(([ex, ey], i) => {
+      const pts = [];
+      const n = 14;
+      for (let k = 0; k <= n; k++) {
+        const t = (k / n) * Math.PI * 2;
+        const rx = 14 + 3 * n2(Math.cos(t) * 2, Math.sin(t) * 2, seed + 8 + i);
+        const ry = 20 + 3 * n2(Math.cos(t) * 3, Math.sin(t) * 3, seed + 9 + i);
+        pts.push({ x: ex + Math.cos(t) * rx * (i ? 1 : -1), y: ey + Math.sin(t) * ry * 0.9 });
+      }
+      strokeSketch(ctx, pts, { closed: true, seed: seed + 8 + i, width: 2.4 });
+    });
+  } else if (c.ears === 'pointy') {
+    [[102, 92, 95, 50], [198, 92, 205, 50]].forEach(([bx, by, tx, ty]) => {
+      strokeSketch(ctx, [{ x: bx - 11, y: by }, { x: tx + n2(0, seed, 3) * 3, y: ty }, { x: bx + 11, y: by + 4 }], { closed: true, seed: seed + 4, width: 2.2 });
+    });
+  } else if (c.ears === 'round') {
+    [[104, 130], [196, 130]].forEach(([ex, ey], i) => {
+      strokeSketch(ctx, ellipsePts(ex, ey, 15, 15), { seed: seed + 7 + i, width: 2.2 });
+    });
+  } else if (c.ears === 'antenna') {
+    [[132, 84], [168, 86]].forEach(([ax, ay], i) => {
+      strokeSketch(ctx, [{ x: ax, y: ay + 10 }, { x: ax, y: ay - 14 }], { passes: 1, width: 1.8, seed: seed + 12 + i });
+      strokeSketch(ctx, ellipsePts(ax, ay - 20, 4.5, 4.5), { seed: seed + 16 + i, width: 1.6 });
+    });
+  } else if (c.ears === 'horns') {
+    [[110, 96, 102, 58], [190, 96, 198, 58]].forEach(([bx, by, tx, ty], i) => {
+      strokeSketch(ctx, [{ x: bx - 8, y: by }, { x: tx, y: ty }, { x: bx + 9, y: by + 4 }], { closed: true, seed: seed + 20 + i, width: 2 });
+    });
+  }
+}
+
+function drawHair(c, seed) {
+  const top = HEAD.y - HEAD.ry + 4;
+  if (c.hair === 'grass') {
+    for (let i = 0; i < 6; i++) {
+      const t = i / 5 - 0.5;
+      const dx = -30 + i * 12 + n2(i, 3, seed + 30) * 4;
+      const lean = t * 30 + n2(i, 5, seed + 31) * 6;
+      const len = 15 + n2(i, 7, seed + 32) * 9;
+      strokeSketch(ctx, [{ x: HEAD.x + dx, y: top + 6 }, { x: HEAD.x + dx + lean, y: top + 6 - len }], { passes: 1, width: 2.4, seed: seed + 30 + i });
+    }
+  } else if (c.hair === 'spiky') {
+    for (let i = 0; i < 5; i++) {
+      const dx = -20 + i * 10;
+      strokeSketch(ctx, [{ x: HEAD.x + dx, y: top + 6 }, { x: HEAD.x + dx + (i % 2 ? 4 : -4), y: top - 18 - (i % 3) * 4 }], { passes: 1, width: 2.2, seed: seed + 40 + i });
+    }
+  } else if (c.hair === 'fringe') {
+    for (let i = 0; i < 4; i++) {
+      const dx = -18 + i * 12;
+      strokeSketch(ctx, [{ x: HEAD.x + dx, y: top + 4 }, { x: HEAD.x + dx + 3, y: top + 15 }], { passes: 1, width: 2, seed: seed + 50 + i });
+    }
+  } else if (c.hair === 'bun') {
+    fillSketch(ctx, ellipsePts(HEAD.x, top - 8, 7, 7), '#3a3a40', 1.2, seed + 60);
+    strokeSketch(ctx, ellipsePts(HEAD.x, top - 8, 7, 7), { seed: seed + 60, width: 1.8 });
+  }
+}
+
+function drawFace(c, seed) {
+  const gx = gaze.x * 6.5, gy = gaze.y * 6.5;
+  const eyeY = HEAD.y + 16;
+  const eyeL = { x: HEAD.x - 17 + gx, y: eyeY + gy * 0.7 };
+  const eyeR = { x: HEAD.x + 17 + gx, y: eyeY + gy * 0.7 };
+  if (c.eye === 'dot') {
+    [eyeL, eyeR].forEach((e, i) => {
+      fillSketch(ctx, ellipsePts(e.x, e.y, 4.2, 4.2), '#232323', 0.7, seed + 70 + i);
+    });
+  } else if (c.eye === 'white') {
+    [eyeL, eyeR].forEach((e, i) => {
+      fillSketch(ctx, ellipsePts(e.x, e.y, 7.5, 8), '#fffdf5', 1, seed + 80 + i);
+      strokeSketch(ctx, ellipsePts(e.x, e.y, 7.5, 8), { seed: seed + 80 + i, width: 1.8 });
+      fillSketch(ctx, ellipsePts(e.x, e.y + 1, 3.2, 3.2), c.iris, 0.7, seed + 84 + i);
+    });
+  } else if (c.eye === 'happy') {
+    [eyeL, eyeR].forEach((e, i) => {
+      strokeSketch(ctx, arcPts(e.x, e.y + 2, 6.5, Math.PI * 1.05, Math.PI * 1.95, 8), { passes: 1, width: 2, seed: seed + 90 + i });
+    });
+  } else if (c.eye === 'sleepy') {
+    [eyeL, eyeR].forEach((e, i) => {
+      strokeSketch(ctx, [{ x: e.x - 6, y: e.y }, { x: e.x + 6, y: e.y }], { passes: 1, width: 1.8, seed: seed + 100 + i });
+    });
+  }
+  const browY = eyeY - 13;
+  [eyeL, eyeR].forEach((e, i) => {
+    if (c.brow === 'raised') {
+      const p = i === 0
+        ? [{ x: e.x - 6, y: browY - 3 }, { x: e.x + 6, y: browY + 1 }]
+        : [{ x: e.x - 6, y: browY + 1 }, { x: e.x + 6, y: browY - 3 }];
+      strokeSketch(ctx, p, { passes: 1, width: 2, seed: seed + 110 + i });
+    } else if (c.brow === 'angry') {
+      const innerY = browY - 3, outerY = browY + 2;
+      const p = i === 0
+        ? [{ x: e.x - 6, y: innerY }, { x: e.x + 6, y: outerY }]
+        : [{ x: e.x - 6, y: outerY }, { x: e.x + 6, y: innerY }];
+      strokeSketch(ctx, p, { passes: 1, width: 2, seed: seed + 112 + i });
+    } else {
+      strokeSketch(ctx, [{ x: e.x - 6, y: browY + 1 }, { x: e.x + 6, y: browY - 1 }], { passes: 1, width: 2, seed: seed + 114 + i });
+    }
+  });
+  const fx = HEAD.x + gx * 0.95, fy = HEAD.y + 26 + gy * 0.95;
+  strokeSketch(ctx, ellipsePts(fx, fy, 10.5, 4.2, 14), { passes: 1, width: 1.8, seed: seed + 120 });
+  fillSketch(ctx, ellipsePts(fx, fy, 1.8, 1.8), '#4c453a', 0.5, seed + 122);
+  [[-6, 9], [6, 9]].forEach(([dx, dy], i) => {
+    const wx = fx + dx, wy = fy + dy;
+    fillSketch(ctx, ellipsePts(wx, wy, 1.1, 1.1), 'rgba(74,69,58,0.8)', 0.5, seed + 124 + i);
+  });
+  const my = HEAD.y + 44 + gy * 0.95;
+  const mx = HEAD.x + gx * 0.95;
+  if (c.mouth === 'smile') {
+    const pts = [];
+    const n = 14;
+    for (let i = 0; i <= n; i++) {
+      const t = -1 + (2 * i) / n;
+      pts.push({ x: mx + t * 34, y: my - 3 - t * t * 8 });
+    }
+    strokeSketch(ctx, pts, { passes: 1, width: 2.6, seed: seed + 130 });
+  } else if (c.mouth === 'open') {
+    fillSketch(ctx, ellipsePts(mx, my + 1, 5.5, 6), '#3a2f28', 1, seed + 132);
+    strokeSketch(ctx, ellipsePts(mx, my + 1, 5.5, 6), { seed: seed + 132, width: 1.6 });
+  } else if (c.mouth === 'flat') {
+    strokeSketch(ctx, [{ x: mx - 8, y: my }, { x: mx + 8, y: my + 1 }], { passes: 1, width: 1.8, seed: seed + 134 });
+  } else if (c.mouth === 'ooh') {
+    fillSketch(ctx, ellipsePts(mx, my, 3, 4.5), '#3a2f28', 0.8, seed + 136);
+  }
+}
+
+function drawLimbs(c, seed, swayL = 0, swayR = 0) {
+  [[138, BODY.y + BODY.ry + 2, 134, 326], [162, BODY.y + BODY.ry + 2, 166, 326]].forEach(([x1, y1, x2, y2], i) => {
+    strokeSketch(ctx, limbPts({ x: x1, y: y1 }, { x: x2, y: y2 }, seed + 150 + i, 0.05), { passes: 2, width: 2.2, seed: seed + 150 + i });
+  });
+  const shL = { x: 112, y: BODY.y - 24 }, shR = { x: 188, y: BODY.y - 24 };
+  let poses;
+  if (c.arms === 'up') {
+    poses = [
+      { s: shL, h: { x: 102, y: 226 } },
+      { s: shR, h: { x: 198, y: 226 } },
+    ];
+  } else if (c.arms === 'wave') {
+    poses = [
+      { s: shL, h: { x: 96, y: 220 } },
+      { s: shR, h: { x: 204, y: 302 } },
+    ];
+  } else {
+    poses = [
+      { s: shL, h: { x: 94, y: 306 } },
+      { s: shR, h: { x: 206, y: 306 } },
+    ];
+  }
+  poses.forEach((p, i) => {
+    const dir = i === 0 ? -1 : 1;
+    const armSway = i === 0 ? swayL : swayR;
+    const hx = p.h.x + armSway, hy = p.h.y - Math.max(0, armSway) * 0.9;
+    const pts = [];
+    const n = 8;
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      const bow = Math.sin(t * Math.PI) * 9 * dir;
+      pts.push({ x: p.s.x + (hx - p.s.x) * t + bow + n2(t * 5, 3, seed + 160 + i) * 2.5, y: p.s.y + (hy - p.s.y) * t + n2(t * 7, 5, seed + 161 + i) * 2.5 });
+    }
+    strokeSketch(ctx, pts, { passes: 2, width: 2, seed: seed + 160 + i });
+    strokeSketch(ctx, arcPts(hx, hy, 4.6, Math.PI * 0.12, Math.PI * 0.88, 8), { passes: 1, width: 2, seed: seed + 170 + i });
+  });
+}
+
+function drawHead(c, seed) {
+  const pts = eggPts(HEAD.x, HEAD.y, HEAD.rx, HEAD.ry, seed + 50);
+  strokeSketch(ctx, pts, { seed: seed + 50, width: 2.6 });
+  ctx.save();
+  trace(ctx, jittered(pts, 1.6, seed + 51), true);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(35,35,35,0.22)';
+  ctx.lineWidth = 1;
+  for (let k = 0; k < 5; k++) {
+    const x0 = HEAD.x + 20 + k * 4.5, y0 = HEAD.y + 4 + k * 7;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + 13, y0 + 9);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function wobblyLine(x1, y1, x2, y2, seed, amp) {
+  const pts = [];
+  const n = 6;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    pts.push({
+      x: x1 + (x2 - x1) * t + amp * n2(t * 11.3, 7, seed),
+      y: y1 + (y2 - y1) * t + amp * n2(t * 13.7, 9, seed + 2),
+    });
+  }
+  return pts;
+}
+
+function drawInputFrame(seed) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const cw = canvas.width, ch = canvas.height;
+  const sc = 0.72;
+  const sx = (cw / LOGICAL.w) * sc, sy = (ch / LOGICAL.h) * sc;
+  const tx = cw * (1 - sc) / 2, ty = ch * 0.16;
+  const iw = Math.min(370, window.innerWidth * 0.9) * dpr;
+  const iH = 58 * dpr;
+  const iTop = ch - ch * 0.10 - iH;
+  const iLeft = (cw - iw) / 2;
+  const x = (iLeft - tx) / sx, y = (iTop - ty) / sy, w = iw / sx, h = iH / sy;
+  const o = 18;
+  strokeSketch(ctx, wobblyLine(x - o, y + 5, x + w + o, y + 3, seed + 300, 4.5), { passes: 2, width: 3, seed: seed + 300 });
+  strokeSketch(ctx, wobblyLine(x + w + 5, y - o * 0.4, x + w + 3, y + h + o * 0.4, seed + 301, 1.8), { passes: 2, width: 3, seed: seed + 301 });
+  strokeSketch(ctx, wobblyLine(x + w + o, y + h - 4, x - o, y + h + 3, seed + 302, 4.5), { passes: 2, width: 3, seed: seed + 302 });
+  strokeSketch(ctx, wobblyLine(x - 4, y + h + o * 0.4, x - 6, y - o * 0.4, seed + 303, 1.8), { passes: 2, width: 3, seed: seed + 303 });
+}
+
+function render() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  if (canvas.width !== Math.round(window.innerWidth * dpr) || canvas.height !== Math.round(window.innerHeight * dpr)) resize();
+  const cw = canvas.width, ch = canvas.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(paper, 0, 0, cw, ch);
+
+  const sc = 0.72;
+  const sx = (cw / LOGICAL.w) * sc;
+  const sy = (ch / LOGICAL.h) * sc;
+  const tx = cw * (1 - sc) / 2;
+  const ty = ch * 0.16;
+  ctx.setTransform(sx, 0, 0, sy, tx, ty);
+
+  const seed = 1000 + (hash(input.value || '') % 9000);
+  const idle = idleK;
+  const sway = Math.sin(time * 1.0) * 0.012 * idle;
+  const headTilt = Math.sin(time * 1.0) * 0.028 * idle + gaze.x * 0.05;
+  const hopK = Math.sin(Math.max(0, hop) * Math.PI);
+  const hopY = -hopK * 9;
+  const armIdle = Math.sin(time * 1.0) * 2.2 * idle;
+  const armWave = Math.sin(waveProg * Math.PI * 3) * 7 * waveProg;
+  const jumpRaise = hopK * 9;
+
+  drawGround(seed);
+
+  ctx.save();
+  ctx.translate(150, 260);
+  ctx.rotate(sway);
+  ctx.translate(-150, -260);
+  ctx.translate(0, hopY);
+
+  drawBody(creature, seed);
+  drawLimbs(creature, seed, armIdle + armWave + jumpRaise, armIdle + jumpRaise);
+
+  ctx.save();
+  ctx.translate(HEAD.x, HEAD.y);
+  ctx.rotate(headTilt);
+  ctx.translate(-HEAD.x + gaze.x * 2.2, -HEAD.y + gaze.y * 1.8);
+  drawEars(creature, seed);
+  drawHead(creature, seed);
+  drawHair(creature, seed);
+  drawFace(creature, seed);
+  ctx.restore();
+  ctx.restore();
+
+  drawInputFrame(seed);
+}
+
+function tick() {
+  const now = performance.now();
+  const dt = (now - lastT) / 1000;
+  lastT = now;
+  time += dt;
+  if (actionT <= 0 && !mouseOnScreen) {
+    if (Math.random() < 0.45) { hop = 1; } else { waveProg = 1; }
+    actionT = 6 + Math.random() * 6;
+  }
+  if (hop > 0) hop = Math.max(0, hop - dt / 0.5);
+  if (waveProg > 0) waveProg = Math.max(0, waveProg - dt / 1.4);
+  if (mouse.active) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = ((mouse.x - rect.left) / rect.width) * LOGICAL.w;
+    const my = ((mouse.y - rect.top) / rect.height) * LOGICAL.h;
+    gaze.x += (Math.max(-1, Math.min(1, (mx - 150) / 75)) - gaze.x) * 0.13;
+    gaze.y += (Math.max(-1, Math.min(1, (my - 158) / 90)) - gaze.y) * 0.13;
+  } else {
+    gaze.x *= 0.88;
+    gaze.y *= 0.88;
+  }
+  const idleTarget = mouseOnScreen ? 0 : 1;
+  idleK += (idleTarget - idleK) * 0.06;
+  render();
+  requestAnimationFrame(tick);
+}
+
+input.addEventListener('input', () => {
+  const name = input.value.trim();
+  creature = makeCreature(name);
+});
+window.addEventListener('mousemove', (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  mouse.active = true;
+  mouseOnScreen = true;
+});
+document.documentElement.addEventListener('mouseleave', () => {
+  mouse.active = false;
+  mouseOnScreen = false;
+});
+window.addEventListener('resize', resize);
+
+resize();
+render();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
