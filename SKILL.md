@@ -18,7 +18,7 @@ bash install.sh ~/.codex/skills    # Codex
 bash install.sh ~/.claude/skills   # Claude Code
 
 # 方式二：直接克隆到技能目录
-git clone https://github.com/spring218313/handdrawn-creature-app ~/.agents/skills/handdrawn-creature-app
+git clone https://github.com/Tree-oil/handdrawn-creature-app ~/.agents/skills/handdrawn-creature-app
 
 # 方式三：手动复制本文件夹到任意 Agent 的技能目录
 ```
