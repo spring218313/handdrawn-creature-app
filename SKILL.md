@@ -1,11 +1,27 @@
 ---
 name: handdrawn-creature-app
-description: 快速复刻/定制「Who are you?」手绘生物生成应用。输入用户名 → 确定性生成一只铅笔手绘小生物（简笔线稿头 + 单色填色身体 + 小弧形手 + 棍子腿），带待机轻晃/跳跃/挥手动效和鼠标入画时脸部跟随。模板在 assets/template-index.html，单文件零依赖。触发词：手绘生物、用户名生成角色、Who are you、手绘头像应用、复刻这个生物应用。
+description: 快速复刻/定制「Who are you?」手绘生物生成应用（通用 Agent skill，适用于 Codex / Claude Code / workBuddy / Trae 等）。输入用户名 → 确定性生成一只铅笔手绘小生物（简笔线稿头 + 单色填色身体 + 小弧形手 + 棍子腿），带待机轻晃/跳跃/挥手动效和鼠标入画时脸部跟随。模板在 assets/template-index.html，单文件零依赖。触发词：手绘生物、用户名生成角色、Who are you、手绘头像应用、复刻这个生物应用。
 ---
 
 # Hand-Drawn Creature App
 
 从「Who are you?」项目沉淀的单文件应用模板：输入名字 → 哈希 → 确定性生成一只极简铅笔手绘生物。
+
+## 安装 / Install
+
+本 skill 遵循通用 Agent skill 目录格式（文件夹 + SKILL.md），可安装到任意 Agent 的技能目录：
+
+```bash
+# 方式一：一键脚本（在仓库目录内执行，目标目录自选）
+bash install.sh ~/.agents/skills   # 通用 / workBuddy / Trae 等
+bash install.sh ~/.codex/skills    # Codex
+bash install.sh ~/.claude/skills   # Claude Code
+
+# 方式二：直接克隆到技能目录
+git clone https://github.com/spring218313/handdrawn-creature-app ~/.agents/skills/handdrawn-creature-app
+
+# 方式三：手动复制本文件夹到任意 Agent 的技能目录
+```
 
 ## 快速复刻
 

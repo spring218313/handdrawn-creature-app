@@ -6,7 +6,21 @@
 
 Deterministic hand-drawn creature generator: type a username, get a unique pencil-sketch creature with idle sway, jump/wave actions and mouse-following face. Single-file HTML, zero dependencies.
 
-## Quick Start
+## 安装 / Install
+
+通用 Agent skill（文件夹 + SKILL.md 格式），Codex、Claude Code、workBuddy、Trae 等都可以调用：
+
+```bash
+# 一键脚本安装到指定 Agent 的技能目录
+bash install.sh ~/.agents/skills   # 通用 / workBuddy / Trae 等
+bash install.sh ~/.codex/skills    # Codex
+bash install.sh ~/.claude/skills   # Claude Code
+
+# 或直接克隆
+git clone https://github.com/spring218313/handdrawn-creature-app ~/.agents/skills/handdrawn-creature-app
+```
+
+## 快速开始 / Quick Start
 
 ```bash
 cp assets/template-index.html ./index.html
